@@ -14,6 +14,8 @@
  Date: 02/03/2022 23:12:54
 */
 
+use hmdp;
+
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -21,8 +23,9 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- Table structure for tb_blog
 -- ----------------------------
 DROP TABLE IF EXISTS `tb_blog`;
-CREATE TABLE `tb_blog`  (
-  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+CREATE TABLE `tb_blog`
+(
+  `id`          bigint(20) UNSIGNED                                        NOT NULL AUTO_INCREMENT COMMENT '主键',
   `shop_id` bigint(20) NOT NULL COMMENT '商户id',
   `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '用户id',
   `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '标题',

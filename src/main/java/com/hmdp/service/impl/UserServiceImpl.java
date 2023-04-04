@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.hmdp.utils.RedisConstants.*;
+import static com.hmdp.utils.SystemConstants.USER_CODE;
 import static com.hmdp.utils.SystemConstants.USER_NICK_NAME_PREFIX;
 
 /**
@@ -65,6 +66,27 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     }
 
     @Override
+    public Result sendCode2(String phone, HttpSession session) {
+        // 1.校验手机号
+        if (RegexUtils.isPhoneInvalid(phone)) {
+            // 2.如果不符合，返回错误信息
+            return Result.fail("手机号校验失败，请重新校验手机号是否正确！");
+        }
+
+        // 3.符合，生成验证码
+        String code = RandomUtil.randomNumbers(6);
+
+        // 4.保存验证码到 session
+        session.setAttribute(USER_CODE, code);
+
+        // 5.发送验证码
+        log.debug("短信验证码发送成功，验证码：{}", code);
+
+        // 返回ok
+        return Result.ok();
+    }
+
+    @Override
     public Result login(LoginFormDTO loginForm, HttpSession session) {
         // 1.校验手机号
         String phone = loginForm.getPhone();
@@ -87,6 +109,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         if (user == null) {
             // 6.不存在，创建新用户并保存
             user = createUserWithPhone(phone);
+
         }
 
         // 7.保存用户信息到 redis中
@@ -107,6 +130,37 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         // 8.返回token
         return Result.ok(token);
     }
+
+    @Override
+    public Result login2(LoginFormDTO loginForm, HttpSession session) {
+        String phone = loginForm.getPhone();
+        // 1.校验手机号
+        if (RegexUtils.isPhoneInvalid(phone)) {
+            return Result.fail("手机号校验失败！");
+        }
+        // 2.校验验证码
+        Object cacheCode = session.getAttribute(USER_CODE);
+        String code = loginForm.getCode();
+        if (cacheCode == null || !cacheCode.toString().equals(code)) {
+            return Result.fail("验证码校验失败");
+        }
+        // 3.根据手机号查询用户
+        User user = query().eq("phone", phone).one();
+        // 4.用户不存在，创建用户
+        if (user == null) {
+            try {
+                user = createUserWithPhone(phone);
+            } catch (RuntimeException e) {
+                log.debug("创建用户失败", e);
+                return Result.fail("创建用户失败！请稍后再试");
+            }
+        }
+        // 5.将用户信息存放在session中,将数据筛选存储在session中(减少内存占用)
+        session.setAttribute("user", BeanUtil.copyProperties(user, UserDTO.class));
+
+        return Result.ok();
+    }
+
 
     @Override
     public Result sign() {
