@@ -35,11 +35,11 @@
   - 字符串结构：将对象序列化为JSON存储在Redis中。
   - HASH结构：将对象的每个字段进行存储，支持单个字段CRUD，内存占用比String更少
 
-###### <img src="/Users/gaojianheng/Desktop/练习/code/heima/heima-dianping-redis/images/改造为redis存储信息.png" alt="改造为redis存储信息" style="zoom: 25%;" />
+###### <img src="./images/改造为redis存储信息.png" alt="改造为redis存储信息" style="zoom: 25%;" />
 
 ### 拦截器优化
 
-<img src="/Users/gaojianheng/Desktop/练习/code/heima/heima-dianping-redis/images/拦截器优化.png" alt="拦截器优化" style="zoom:33%;" />
+.
 
 **新增token拦截器：负责刷新redis中token的有效时间**
 
@@ -47,11 +47,11 @@
 
 店铺增加缓存
 
-![店铺增加缓存](/Users/gaojianheng/Desktop/练习/code/heima/heima-dianping-redis/images/店铺增加缓存.png)
+![店铺增加缓存](./images/店铺增加缓存.png)
 
 **练习**：店铺类型查询业务添加缓存
 
-<img src="/Users/gaojianheng/Desktop/练习/code/heima/heima-dianping-redis/images/店铺类型添加缓存.png" alt="店铺类型添加缓存" style="zoom: 50%;" />
+<img src="./images/店铺类型添加缓存.png" alt="店铺类型添加缓存" style="zoom: 50%;" />
 
 
 
