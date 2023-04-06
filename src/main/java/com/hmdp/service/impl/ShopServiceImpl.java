@@ -1,5 +1,7 @@
 package com.hmdp.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -7,7 +9,6 @@ import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
 import com.hmdp.mapper.ShopMapper;
 import com.hmdp.service.IShopService;
-import com.hmdp.utils.CacheClient;
 import com.hmdp.utils.SystemConstants;
 import org.springframework.data.geo.Distance;
 import org.springframework.data.geo.GeoResult;
@@ -22,7 +23,8 @@ import javax.annotation.Resource;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import static com.hmdp.utils.RedisConstants.*;
+import static com.hmdp.utils.RedisConstants.CACHE_SHOP_KEY;
+import static com.hmdp.utils.RedisConstants.SHOP_GEO_KEY;
 
 /**
  * <p>
@@ -39,28 +41,39 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
-    @Resource
-    private CacheClient cacheClient;
+//    @Resource
+//    private CacheClient cacheClient;
 
     @Override
     public Result queryById(Long id) {
-        // 解决缓存穿透
-        Shop shop = cacheClient
-                .queryWithPassThrough(CACHE_SHOP_KEY, id, Shop.class, this::getById, CACHE_SHOP_TTL, TimeUnit.MINUTES);
 
-        // 互斥锁解决缓存击穿
-        // Shop shop = cacheClient
-        //         .queryWithMutex(CACHE_SHOP_KEY, id, Shop.class, this::getById, CACHE_SHOP_TTL, TimeUnit.MINUTES);
+        String shopKey = "cache:shop:" + id;
 
-        // 逻辑过期解决缓存击穿
-        // Shop shop = cacheClient
-        //         .queryWithLogicalExpire(CACHE_SHOP_KEY, id, Shop.class, this::getById, 20L, TimeUnit.SECONDS);
-
-        if (shop == null) {
-            return Result.fail("店铺不存在！");
+        // 1.从redis中查询商铺信息
+        Map<Object, Object> shopCache = stringRedisTemplate.opsForHash().entries(shopKey);
+        // 2.判断redis中商户是否存在
+        if (!shopCache.isEmpty()) {
+            return Result.ok(shopCache);
         }
+
+        // 3.缓存未命中
+        // 4.根据id查询数据库
+        Shop shop = query().eq("id", id).one();
+        // 5.判断商户是否存在
+        // 6.mysql中商铺不存在
+        if (shop == null) {
+            return Result.fail("商户不存在");
+        }
+
+        Map<String, Object> shopMap = BeanUtil.beanToMap(shop, new HashMap<>(), CopyOptions.create()
+                .setIgnoreNullValue(true)
+                .setFieldValueEditor((fieldName, fieldValue) -> fieldValue != null ? fieldValue.toString() : "0"));
+
+        stringRedisTemplate.opsForHash().putAll(shopKey, shopMap);
+        stringRedisTemplate.expire(shopKey, 1, TimeUnit.HOURS);
+
         // 7.返回
-        return Result.ok(shop);
+        return Result.ok(shopMap);
     }
 
     @Override

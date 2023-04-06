@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.hmdp.utils.RedisConstants.*;
-import static com.hmdp.utils.SystemConstants.USER_CODE;
 import static com.hmdp.utils.SystemConstants.USER_NICK_NAME_PREFIX;
 
 /**
@@ -76,8 +75,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         // 3.符合，生成验证码
         String code = RandomUtil.randomNumbers(6);
 
-        // 4.保存验证码到 session
-        session.setAttribute(USER_CODE, code);
+        // 4.保存验证码到 redis
+        stringRedisTemplate.opsForValue().set(LOGIN_CODE_KEY + phone, code, 60, TimeUnit.SECONDS);
 
         // 5.发送验证码
         log.debug("短信验证码发送成功，验证码：{}", code);
@@ -139,9 +138,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             return Result.fail("手机号校验失败！");
         }
         // 2.校验验证码
-        Object cacheCode = session.getAttribute(USER_CODE);
+        String redisCacheCode = stringRedisTemplate.opsForValue().get(LOGIN_CODE_KEY + phone);
         String code = loginForm.getCode();
-        if (cacheCode == null || !cacheCode.toString().equals(code)) {
+        if (redisCacheCode == null || !redisCacheCode.equals(code)) {
             return Result.fail("验证码校验失败");
         }
         // 3.根据手机号查询用户
@@ -155,10 +154,24 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
                 return Result.fail("创建用户失败！请稍后再试");
             }
         }
-        // 5.将用户信息存放在session中,将数据筛选存储在session中(减少内存占用)
-        session.setAttribute("user", BeanUtil.copyProperties(user, UserDTO.class));
+        // 生成用户token
+        String token = UUID.randomUUID().toString(true);
 
-        return Result.ok();
+        // 拿到需要存储的用户信息，并转化为HASH格式
+        UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
+        Map<String, Object> userMap = BeanUtil.beanToMap(userDTO, new HashMap<>(),
+                CopyOptions.create()
+                        .setIgnoreNullValue(true)
+                        // 将字段类型修改为字符串类型，因为stringRedisTemple中的key、value都需要是String
+                        .setFieldValueEditor((fieldName, fieldValue) -> fieldValue.toString())
+        );
+
+        // 将用户信息存放在redis中，并设置2小时有效期
+        String key = LOGIN_USER_KEY + token;
+        stringRedisTemplate.opsForHash().putAll(key, userMap);
+        stringRedisTemplate.expire(key, LOGIN_USER_TTL, TimeUnit.SECONDS);
+
+        return Result.ok(token);
     }
 
 
