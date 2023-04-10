@@ -11,6 +11,7 @@ import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
 import com.hmdp.mapper.ShopMapper;
 import com.hmdp.service.IShopService;
+import com.hmdp.utils.CacheClient2;
 import com.hmdp.utils.RedisData;
 import com.hmdp.utils.SystemConstants;
 import lombok.extern.slf4j.Slf4j;
@@ -46,19 +47,24 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     private static final ExecutorService CACHE_EXECUTOR = Executors.newFixedThreadPool(10);
 
-//    @Resource
-//    private CacheClient cacheClient;
+    @Resource(name = "cacheClient2")
+    private CacheClient2 cacheClient;
 
     @Override
     public Result queryById(Long id) {
         // 缓存穿透
 //        Map<Object,Object> shop = queryWithPassThrough(id);
+//        Shop shop = cacheClient.getRedisPenetrate(CACHE_SHOP_KEY, id, Shop.class, this::getById, 20L, TimeUnit.SECONDS);
+
 
         // 基于redis互斥锁解决缓存击穿
 //        Map<Object, Object> shop = queryWithMutex(id);
-
+        Shop shop = cacheClient.getRedisBreakdown(CACHE_SHOP_KEY, id, Shop.class, this::getById, 20L, TimeUnit.SECONDS);
+        if (shop == null) {
+            return Result.fail("店铺不存在");
+        }
         // 基于逻辑删除方式解决缓存击穿
-        Map shop = queryWithExpireTime(id);
+//        Map shop = queryWithExpireTime(id);
         return Result.ok(shop);
 
     }
@@ -220,11 +226,10 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         Shop shop = getById(id);
         // 封装逻辑时间
         RedisData redisData = new RedisData();
-        redisData.setData(JSONUtil.toJsonStr(shop));
+        redisData.setData(shop);
         redisData.setExpireTime(LocalDateTime.now().plusSeconds(expireSecond));
 
         Thread.sleep(100);
-
         Map<String, Object> stringObjectMap = BeanUtil.beanToMap(redisData, new HashMap<>(),
                 CopyOptions.create()
                         .setIgnoreNullValue(true)
@@ -232,7 +237,9 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
                         ));
         String shopKey = CACHE_SHOP_KEY + id;
         // 写入redis
-        stringRedisTemplate.opsForHash().putAll(shopKey, stringObjectMap);
+//        stringRedisTemplate.opsForHash().putAll(shopKey, stringObjectMap);
+        stringRedisTemplate.opsForValue().set(shopKey, JSONUtil.toJsonStr(redisData), expireSecond);
+
 
     }
 
