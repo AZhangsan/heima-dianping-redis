@@ -83,6 +83,11 @@
             <artifactId>redisson</artifactId>
             <version>3.13.6</version>
         </dependency>
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>
