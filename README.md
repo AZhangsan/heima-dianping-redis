@@ -121,11 +121,13 @@
 
 ## 优惠券秒杀
 
+### 秒杀功能铺垫：
+
 #### 全局唯一ID
 
 ![全局自增器概念](./images/全局自增器概念.png)
 
-#### 优惠券秒杀
+#### 优惠券秒杀分析
 
 **悲观锁方案**：添加同步锁，让线程串行执行。synchronized或者Lock
 
@@ -145,18 +147,105 @@
 
 ![分布式锁的实现对比](./images/分布式锁的实现对比.png)
 
+### 秒杀实现：
+
 #### 基于Redis实现分布式锁
 
 ![基于redis实现分布式锁](./images/基于redis实现分布式锁.png)
 
 ```redis
 #使用命令添加redis锁并设置有效时间
+
+
 set lock value NX EX 10
+
+
 #解锁
+
+
 del lock
 ```
 
+#### Lua脚本操作redis实现原子性解锁操作
 
+```lua
+unlock.lua
+-- key
+if (ARGV[1] == redis.call('get', KEYS[1])) then
+    -- 释放锁
+    return redis.call('del', KEYS[1])
+end
+return 0
+```
+
+#### 使用Redisson分布式锁解决秒杀问题
+
+##### **不可重入问题解决方案**：
+
+<img src="./images/Redisson可重入锁原理.png" alt="Redisson可重入锁原理" style="zoom:33%;" />
+
+##### Redisson分布式锁原理：
+
+![Redisson分布式锁原理](./images/Redisson分布式锁原理.png)
+
+##### Redisson分布式锁总结
+
+<img src="./images/redis分布式锁总结.png" alt="redis分布式锁总结" style="zoom:33%;" />
+
+### 优惠券秒杀优化方案：
+
+#### 优惠券秒杀优化流程：Redis+Lua+BlockingQueue
+
+##### 整体流程：
+
+1、使用Lua+Redis实现秒杀业务逻辑判断，同时保证原子性。
+
+2、对于生成订单功能，采用开启独立线程任务异步操作阻塞队列数据持久化到数据库
+
+![优惠券秒杀业务优化流程](./images/优惠券秒杀业务优化流程.png)
+
+##### 存在的问题
+
+1、内存问题：BlockingQueue使用的是JVM内存，有限制，大量订单创建后会导致内存溢出或订单创建不成功
+
+2、数据安全问题：JVM挂了后BlockingQueue中的订单信息都会丢失
+
+#### 优惠券秒杀优化：Redis消息队列
+
+##### List结构实现消息队列
+
+通过**BLPUSH+BRPOP**或**BRPUSH+BLPOP**实现使用List阻塞队列
+
+###### 优点：
+
+- 利用Redis存储，没有内存限制
+- 基于Redis持久化，消息数据安全性有保证
+- 可以满足消息的有序性
+
+###### 缺点：
+
+- 无法避免消息丢失
+- 只支持单消费者
+
+##### 基于Pub/Sub发布订阅模式的消息队列
+
+使用PUBLIST 发送、SUBSCRIBE或PSUBSCRIBE接收
+
+###### 优点：
+
+- 采用发布订阅模型，支持多生产、多消费
+
+###### 缺点：
+
+- 不支持数据持久化
+- 无法避免消息丢失
+- 消息堆积有上限，超出时数据丢失
+
+###### 基于Stream实现消息队列
+
+优点：
+
+- 可持久化，有ACK确认机制，支持多消费着
 
 
 
