@@ -57,5 +57,20 @@ public interface IVoucherOrderService extends IService<VoucherOrder> {
      */
     Result createVoucherOrder(Long voucherId);
 
+    /**
+     * 基于Redisson实现分布式锁解决库存超卖问题
+     *
+     * @param voucherId
+     * @return
+     */
+    Result seckillVoucherWithRedisson(Long voucherId);
+
+    /**
+     * 优惠券秒杀优化
+     *
+     * @param voucherId
+     * @return
+     */
+    Result seckillVoucherWithRedissonOptimization(Long voucherId);
 
 }

@@ -110,6 +110,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             user = createUserWithPhone(phone);
 
         }
+        // 8.返回token
+        return Result.ok(generateToken(user));
+    }
+
+    public String generateToken(User user) {
 
         // 7.保存用户信息到 redis中
         // 7.1.随机生成token，作为登录令牌
@@ -125,9 +130,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         stringRedisTemplate.opsForHash().putAll(tokenKey, userMap);
         // 7.4.设置token有效期
         stringRedisTemplate.expire(tokenKey, LOGIN_USER_TTL, TimeUnit.MINUTES);
-
-        // 8.返回token
-        return Result.ok(token);
+        return token;
     }
 
     @Override
@@ -155,23 +158,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             }
         }
         // 生成用户token
-        String token = UUID.randomUUID().toString(true);
-
-        // 拿到需要存储的用户信息，并转化为HASH格式
-        UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
-        Map<String, Object> userMap = BeanUtil.beanToMap(userDTO, new HashMap<>(),
-                CopyOptions.create()
-                        .setIgnoreNullValue(true)
-                        // 将字段类型修改为字符串类型，因为stringRedisTemple中的key、value都需要是String
-                        .setFieldValueEditor((fieldName, fieldValue) -> fieldValue.toString())
-        );
-
-        // 将用户信息存放在redis中，并设置2小时有效期
-        String key = LOGIN_USER_KEY + token;
-        stringRedisTemplate.opsForHash().putAll(key, userMap);
-        stringRedisTemplate.expire(key, LOGIN_USER_TTL, TimeUnit.SECONDS);
-
-        return Result.ok(token);
+        return Result.ok(generateToken(user));
     }
 
 
